@@ -1,5 +1,10 @@
 # jehwan-react-template
 
+## Stack
+
+- FE: React, TypeScript, Tailwind CSS
+- Dev: Husky, Jest, Testing Library, ESLint, Prettier
+
 ## Installation
 
 ### Package
