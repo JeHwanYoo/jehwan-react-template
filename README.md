@@ -2,7 +2,7 @@
 
 ## Stack
 
-- FE: React, TypeScript, Tailwind CSS
+- FE: React, TypeScript, Tailwind CSS, Heroicons
 - Dev: Husky, Jest, Testing Library, ESLint, Prettier
 
 ## Installation
