@@ -5,3 +5,4 @@
 
 # shellcheck disable=SC2016
 printf '#!/usr/bin/env sh\n.%s "$(dirname -- "$0")/_/husky.sh"\n\nnpm run lint\nnpm run test-no-watch\n' >.husky/pre-commit
+chmod +x .husky/pre-commit
