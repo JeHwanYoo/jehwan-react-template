@@ -36,8 +36,9 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "test-no-watch": "npm test -- --watchAll=false --passWithNoTests",
-    "lint": "eslint --ext .js,.jsx,.ts,.tsx .",
-    "fix": "eslint --ext .js,.jsx,.ts,.tsx --fix .",
+    "diff": "git diff --name-only --staged --diff-filter=d | grep -E '\\.(js(x|on)?|ts(x)?)$' || exit 0",
+    "lint": "yarn diff 2>/dev/null | grep -E '\\.(js(x|on)?|ts(x)?)$' | xargs eslint",
+    "fix": "yarn diff 2>/dev/null | grep -E '\\.(js(x|on)?|ts(x)?)$' | xargs eslint --fix",
     "prepare": "sh fix-husky.sh && husky install"
   },
   "browserslist": {
