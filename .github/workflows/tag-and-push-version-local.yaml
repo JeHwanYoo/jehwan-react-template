@@ -1,0 +1,182 @@
+name: Tag and push new version (local)
+
+on:
+  push:
+    branches:
+      - local
+
+jobs:
+  tag-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18'
+      - name: Cache jq
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-jq
+        with:
+          path: ~/.cache/jq
+          key: ${{ runner.os }}-${{ hashFiles('jq') }}
+          restore-keys: |
+            ${{ runner.os }}-jq-
+      - name: Install jq
+        run: |
+          if ! command -v jq > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install jq
+          fi
+      - name: Check last commit message
+        id: commit
+        run: |
+          COMMIT_MESSAGE=$(git log --format=%B -n 1)
+          if [[ $COMMIT_MESSAGE == bump* ]]; then
+          echo "Skipping workflow as commit message starts with 'bump'"
+          echo "SKIP_WORKFLOW=true" >> $GITHUB_ENV
+          fi
+      - name: Halt job if commit message starts with 'bump'
+        run: |
+          if [[ "${{ env.SKIP_WORKFLOW }}" == "true" ]]; then
+            echo "Job halted"
+            exit 1
+          fi
+      - name: Bump npm version based on last commit message
+        id: bump_version
+        run: |
+          echo "start!"
+          git fetch --tags
+          git config --global user.email "yoojehwan1875@gmail.com"
+          git config --global user.name "JeHwanYoo"
+          OLD_VERSION=$(jq -r .version package.json)
+          SUFFIX_FEAT=${OLD_VERSION#*-feat}
+          SUFFIX_FIX=${OLD_VERSION#*-fix}
+          echo OLD_VERSION $OLD_VERSION
+          echo SUFFIX_FEAT $SUFFIX_FEAT
+          echo SUFFIX_FIX $SUFFIX_FIX
+          if [[ $OLD_VERSION == $SUFFIX_FEAT ]] && [[ $OLD_VERSION == $SUFFIX_FIX ]]
+          then
+            echo "No 'feat' or 'fix' suffix. Increment minor or rc version"
+            LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+            MAJOR_VERSION=$(echo $OLD_VERSION | cut -d. -f1)
+            MINOR_VERSION=$(echo $OLD_VERSION | cut -d. -f2)
+            if [[ "$LAST_COMMIT_MSG" =~ ^feat.* ]] || [[ "$LAST_COMMIT_MSG" =~ ^update.* ]]
+            then
+              echo "Version pre-feat"
+              NEW_MINOR_VERSION=$((MINOR_VERSION + 1))
+              BASE_VERSION="${MAJOR_VERSION}.${NEW_MINOR_VERSION}.0"
+              NEW_VERSION="${BASE_VERSION}-feat.0"
+              npm version ${NEW_VERSION} --no-git-tag-version
+            elif [[ "$LAST_COMMIT_MSG" =~ ^fix.* ]] || [[ "$LAST_COMMIT_MSG" =~ ^refactor.* ]]
+            then
+              echo "Version pre-fix"
+              LAST_SUFFIX_VERSION=$(git tag --list '*-fix.*' | sort -V | tail -n1)
+              echo LAST_SUFFIX_VERSION $LAST_SUFFIX_VERSION
+              LAST_SUFFIX_NUMBER="${LAST_SUFFIX_VERSION##*-fix.}"
+          
+              PATCH_VERSION=$(echo $OLD_VERSION | cut -d. -f3)
+              PATCH_VERSION="${PATCH_VERSION%%-*}" # Remove suffix starting from '-'
+          
+              if [[ $OLD_VERSION =~ -rc\..* ]]
+              then
+                echo NO PATCH UP
+                NEW_PATCH_VERSION=$PATCH_VERSION
+              else
+                echo PATCH UP
+                NEW_PATCH_VERSION=$((PATCH_VERSION + 1))
+              fi
+          
+              BASE_VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${NEW_PATCH_VERSION}"
+          
+              LAST_SUFFIX_VERSION_WITHOUT_SUFFIX="${LAST_SUFFIX_VERSION%%-*}" # Remove suffix starting from '-'
+              LAST_SUFFIX_VERSION_WITHOUT_SUFFIX="${LAST_SUFFIX_VERSION_WITHOUT_SUFFIX#v}" # Remove 'v' prefix from version
+          
+              if [[ $LAST_SUFFIX_VERSION_WITHOUT_SUFFIX != $BASE_VERSION ]]
+              then
+                NEW_VERSION="${BASE_VERSION}-fix.0"
+              else
+                NEW_SUFFIX_NUMBER=$((LAST_SUFFIX_NUMBER + 1))
+                NEW_VERSION="${BASE_VERSION}-fix.${NEW_SUFFIX_NUMBER}"
+              fi
+          
+              echo NEW_VERSION $NEW_VERSION
+              npm version ${NEW_VERSION} --no-git-tag-version
+            fi
+          else
+            LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+            PREVIOUS_SUFFIX_NUMBER=${OLD_VERSION##*.}
+            NEW_SUFFIX_NUMBER=$((PREVIOUS_SUFFIX_NUMBER + 1))
+            echo OLD_VERSION: "$OLD_VERSION"
+            echo PREVIOUS_SUFFIX_NUMBER "$PREVIOUS_SUFFIX_NUMBER"
+            echo NEW_SUFFIX_NUMBER "$NEW_SUFFIX_NUMBER"
+            if [[ "$LAST_COMMIT_MSG" =~ ^feat.* ]] || [[ "$LAST_COMMIT_MSG" =~ ^update.* ]]
+            then
+              echo "Version pre-feat"
+              BASE_VERSION="${OLD_VERSION%%-*}"
+              NEW_VERSION="${BASE_VERSION}-feat.${NEW_SUFFIX_NUMBER}"
+              npm version ${NEW_VERSION} --no-git-tag-version
+              echo "VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+            elif [[ "$LAST_COMMIT_MSG" =~ ^fix.* ]] || [[ "$LAST_COMMIT_MSG" =~ ^refactor.* ]]
+            then
+              echo "Version pre-fix"
+              BASE_VERSION="${OLD_VERSION%%-*}"
+              NEW_VERSION="${BASE_VERSION}-fix.${NEW_SUFFIX_NUMBER}"
+              npm version ${NEW_VERSION} --no-git-tag-version
+              echo "VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+            elif [[ "$LAST_COMMIT_MSG" =~ ^docs.* ]] || [[ "$LAST_COMMIT_MSG" =~ ^chore.* ]]
+            then
+              echo "no bump"
+              exit 0
+            else
+              echo "No version bump"
+            fi
+          fi
+          VERSION=$(jq -r .version package.json)
+          echo "current version: $VERSION"
+          echo "VERSION=${NEW_VERSION}" >> $GITHUB_ENV
+      - name: Commit changes
+        run: |
+          if [ -n "${{ env.VERSION }}" ]
+          then
+            git add .
+            git commit -m "bump: ${{ env.VERSION }}"
+            git push origin local --force
+          fi
+      - name: Create tag
+        run: |
+          if [ -n "${{ env.VERSION }}" ]
+          then
+            git tag -f v${{ env.VERSION }}
+            git push --tags --force
+          fi
+      - name: Determine Release Type
+        id: release_type
+        run: |
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1` || exit 0)
+          if [[ "$LATEST_TAG" =~ -fix.* ]] || [[ "$LATEST_TAG" =~ -feat.* ]]
+          then
+          echo "isPrerelease=true" >> $GITHUB_ENV
+          else
+          echo "isPrerelease=false" >> $GITHUB_ENV
+          fi
+      - name: Create Release Note
+        run: |
+          if [ -n "${{ env.VERSION }}" ]
+          then
+            PRERELEASE=${{ env.isPrerelease }}
+            echo $PRERELEASE
+            curl --request POST \
+              --url https://api.github.com/repos/${{ github.repository }}/releases \
+              --header 'authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+              --header 'content-type: application/json' \
+              --data '{
+                "tag_name": "v${{ env.VERSION }}",
+                "name": "v${{ env.VERSION }}",
+                "body": "'"${{ env.RELEASE_NOTE }}"'",
+                "draft": false,
+                "prerelease": '"${PRERELEASE}"',
+                "generate_release_notes": true
+              }'
+          fi
