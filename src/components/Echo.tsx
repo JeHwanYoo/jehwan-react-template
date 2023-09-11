@@ -3,5 +3,5 @@ interface EchoProps {
 }
 
 export function Echo(props: EchoProps) {
-  return <></>
+  return <>{props.message}</>
 }
