@@ -9,7 +9,8 @@
     "diff": "git diff --name-only --staged --diff-filter=d | grep -E '\\.(js(x|on)?|ts(x)?)$' || exit 0",
     "lint": "yarn diff 2>/dev/null | grep -E '\\.(js(x|on)?|ts(x)?)$' | xargs eslint --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "prepare": "sh fix-husky.sh && husky install"
+    "prepare": "sh fix-husky.sh && husky install",
+    "test": "vitest"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -24,8 +25,10 @@
     "eslint": "^8.45.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "happy-dom": "^11.0.2",
     "husky": "^8.0.3",
     "typescript": "^5.0.2",
-    "vite": "^4.4.5"
+    "vite": "^4.4.5",
+    "vitest": "^0.34.4"
   }
 }
