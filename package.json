@@ -10,7 +10,8 @@
     "lint": "yarn diff 2>/dev/null | grep -E '\\.(js(x|on)?|ts(x)?)$' | xargs eslint --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "prepare": "sh fix-husky.sh && husky install",
-    "test": "vitest"
+    "test:all": "vitest -c vitest.config.ts",
+    "test:coverage": "vitest -c vitest.config.ts --coverage"
   },
   "dependencies": {
     "react": "^18.2.0",
